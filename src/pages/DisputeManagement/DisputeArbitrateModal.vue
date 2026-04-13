@@ -1,12 +1,13 @@
 <template>
   <a-modal
-    :open="visible"
+    :open="open"
     title="纠纷订单仲裁"
     :width="800"
-    @update:open="$emit('update:visible', $event)"
+    @update:open="emit('update:open', $event)"
     @ok="handleOk"
-    @cancel="$emit('update:visible', false)"
-    :ok-text="dispute?.result ? '确定' : '提交仲裁'"
+    @cancel="emit('update:open', false)"
+    okText="提交仲裁"
+    cancelText="取消"
   >
     <div v-if="dispute" class="dispute-modal-content">
       <a-descriptions title="详情信息" bordered :column="2">
@@ -48,12 +49,8 @@
       </div>
       <div v-else class="result-section">
         <h3 class="result-title">仲裁结果</h3>
-        <a-alert
-          :message="'判定结果：' + getDecisionLabel(dispute.result.decision)"
-          :description="'理由：' + dispute.result.reason"
-          type="info"
-          show-icon
-        />
+        <a-alert :message="'判定结果：' + getDecisionLabel(dispute.result.decision)"
+          :description="'理由：' + dispute.result.reason" type="info" show-icon />
       </div>
     </div>
   </a-modal>
@@ -62,20 +59,29 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
 
+interface ArbitrationSubmitPayload {
+  decision: string;
+  reason: string;
+  amount: number;
+}
+
 const props = defineProps<{
-  visible: boolean,
-  dispute: any
+  open: boolean;
+  dispute: any;
 }>();
 
-const emit = defineEmits(['update:visible', 'submit']);
+const emit = defineEmits<{
+  'update:open': [value: boolean];
+  submit: [formData: ArbitrationSubmitPayload];
+}>();
 
-const form = reactive({
+const form = reactive<ArbitrationSubmitPayload>({
   decision: '',
   reason: '',
   amount: 0
 });
 
-watch(() => props.visible, (newVal) => {
+watch(() => props.open, (newVal) => {
   if (newVal && !props.dispute?.result) {
     form.decision = '';
     form.reason = '';
@@ -94,7 +100,7 @@ const getDecisionLabel = (val: string) => {
 
 const handleOk = () => {
   if (props.dispute?.result) {
-    emit('update:visible', false);
+    emit('update:open', false);
     return;
   }
   emit('submit', { ...form });
@@ -105,10 +111,13 @@ const handleOk = () => {
 .evidence-section {
   margin-top: 16px;
 }
+
 .arbitration-form {
   margin-top: 16px;
 }
-.form-title, .result-title {
+
+.form-title,
+.result-title {
   margin-bottom: 16px;
 }
 </style>

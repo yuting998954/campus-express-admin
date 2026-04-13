@@ -96,6 +96,7 @@ const handleLogout = () => {
     cancelText: '取消',
     onOk() {
       localStorage.removeItem('isAdminLoggedIn');
+      localStorage.removeItem('adminToken');
       message.success('已退出登录');
       router.push('/login');
     },

@@ -30,9 +30,9 @@
 
 <script setup lang="ts">
 
-const props = defineProps<{
-  open: Boolean,
-  order: any
+defineProps<{
+  open: boolean;
+  order: any;
 }>();
 const emit = defineEmits(['update:open', 'resolve']);
 

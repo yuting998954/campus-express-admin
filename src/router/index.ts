@@ -7,7 +7,7 @@ const router = createRouter({
     {
       path: '/login',
       name: 'Login',
-      component: () => import('../pages/Login.vue'),
+      component: () => import('../pages/Login/index.vue'),
       meta: { title: '登录' }
     },
     {
@@ -18,40 +18,39 @@ const router = createRouter({
         {
           path: 'dashboard',
           name: 'Dashboard',
-          component: () => import('../pages/Dashboard.vue'),
+          component: () => import('../pages/index/index.vue'),
           meta: { title: '首页', requiresAuth: true }
         },
         {
           path: 'users',
           name: 'Users',
-          component: () => import('../pages/UserManagement.vue'),
+          component: () => import('../pages/UserManagement/index.vue'),
           meta: { title: '用户管理', requiresAuth: true }
         },
         {
           path: 'orders',
           name: 'Orders',
-          component: () => import('../pages/OrderManagement.vue'),
+          component: () => import('../pages/OrderManagement/index.vue'),
           meta: { title: '订单管理', requiresAuth: true }
         },
         {
           path: 'disputes',
           name: 'Disputes',
-          component: () => import('../pages/DisputeManagement.vue'),
+          component: () => import('../pages/DisputeManagement/index.vue'),
           meta: { title: '纠纷管理', requiresAuth: true }
         }
       ]
     }
   ]
 })
-
-router.beforeEach((to, from, next) => {
-  const isLoggedIn = localStorage.getItem('isAdminLoggedIn') === 'true';
+// 全局导航守卫，检查用户是否已登录
+router.beforeEach((to) => {
+  const isLoggedIn = Boolean(localStorage.getItem('adminToken'));
   if (to.path !== '/login' && !isLoggedIn) {
-    next('/login');
-  } else if (to.path === '/login' && isLoggedIn) {
-    next('/');
-  } else {
-    next();
+    return '/login';
+  }
+  if (to.path === '/login' && isLoggedIn) {
+    return '/';
   }
 });
 

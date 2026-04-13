@@ -1,30 +1,16 @@
 <template>
   <div class="management-container">
     <div class="search-bar">
-      <a-select 
-        v-model:value="filterStatus" 
-        placeholder="异常筛选" 
-        style="width: 180px" 
-        allow-clear
-      >
+      <a-select v-model:value="filterStatus" placeholder="异常筛选" style="width: 180px" allow-clear>
         <a-select-option value="timeout">超时未取件</a-select-option>
         <a-select-option value="payment_err">支付异常</a-select-option>
         <a-select-option value="slow">长时间未处理</a-select-option>
       </a-select>
-      <a-input-search
-        v-model:value="searchText"
-        placeholder="搜索订单号/手机号"
-        style="width: 250px"
-        @search="onSearch"
-        enter-button
-      />
+      <a-input-search v-model:value="searchText" placeholder="搜索订单号/手机号" style="width: 250px" @search="onSearch"
+        enter-button />
     </div>
 
-    <a-table 
-      :columns="columns" 
-      :data-source="filteredOrders" 
-      :pagination="{ pageSize: 10 }"
-    >
+    <a-table :columns="columns" :data-source="filteredOrders" :pagination="{ pageSize: 10 }">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'status'">
           <a-badge :status="getOrderBadgeStatus(record.status)" :text="record.status" />
@@ -39,27 +25,24 @@
       </template>
     </a-table>
 
-    <OrderDetailModal
-      v-model:open="detailVisible"
-      :order="currentOrder"
-      @resolve="handleException"
-    />
+    <OrderDetailModal v-model:open="detailVisible" :order="currentOrder" @resolve="handleException" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
-import OrderDetailModal from '../components/modals/OrderDetailModal.vue';
-import '../styles/management.css';
+import OrderDetailModal from './OrderDetailModal.vue';
+import '../../styles/management.css';
+import { getOrders, interveneOrder } from '@/service/admin';
 
-interface OrderLog {
+interface OrderLogItem {
   time: string;
   action: string;
 }
 
-interface Order {
-  id: string;
+interface OrderItem {
+  id: number | string;
   orderNo: string;
   userName: string;
   userPhone: string;
@@ -69,60 +52,14 @@ interface Order {
   createTime: string;
   exceptionType?: string;
   exceptionDetail?: string;
-  logs: OrderLog[];
+  logs: OrderLogItem[];
 }
 
 const searchText = ref('');
 const filterStatus = ref<string | null>(null);
 const detailVisible = ref(false);
-const currentOrder = ref<Order|null>(null);
-
-const orders = ref<Order[]>([
-  {
-    id: '1',
-    orderNo: 'ORD20260109001',
-    userName: '张三',
-    userPhone: '13800138001',
-    runnerName: '李四',
-    runnerPhone: '13800138002',
-    status: '进行中',
-    createTime: '2026-01-09 10:00:00',
-    logs: [
-      { time: '10:00:00', action: '用户下单' },
-      { time: '10:05:00', action: '代取人接单' }
-    ]
-  },
-  {
-    id: '2',
-    orderNo: 'ORD20260109002',
-    userName: '王五',
-    userPhone: '13800138003',
-    status: '待接单',
-    createTime: '2026-01-09 08:00:00',
-    exceptionType: '长时间未处理',
-    exceptionDetail: '该订单发布已超过2小时无人接单',
-    logs: [
-      { time: '08:00:00', action: '用户下单' }
-    ]
-  },
-  {
-    id: '3',
-    orderNo: 'ORD20260109003',
-    userName: '赵六',
-    userPhone: '13800138004',
-    runnerName: '李四',
-    runnerPhone: '13800138002',
-    status: '已取件',
-    createTime: '2026-01-09 09:00:00',
-    exceptionType: '超时未取件',
-    exceptionDetail: '代取人已取件超过1小时未送达',
-    logs: [
-      { time: '09:00:00', action: '用户下单' },
-      { time: '09:10:00', action: '代取人接单' },
-      { time: '09:30:00', action: '代取人取件' }
-    ]
-  }
-]);
+const currentOrder = ref<OrderItem | null>(null);
+const orders = ref<OrderItem[]>([]);
 
 const columns = [
   { title: '订单号', dataIndex: 'orderNo', key: 'orderNo' },
@@ -145,8 +82,8 @@ const filteredOrders = computed(() => {
   }
   if (searchText.value) {
     const lowerSearch = searchText.value.toLowerCase();
-    res = res.filter(o => 
-      o.orderNo.toLowerCase().includes(lowerSearch) || 
+    res = res.filter(o =>
+      o.orderNo.toLowerCase().includes(lowerSearch) ||
       o.userPhone.includes(lowerSearch)
     );
   }
@@ -162,17 +99,50 @@ const getOrderBadgeStatus = (status: string) => {
   return map[status] || 'default';
 };
 
-const viewDetail = (order: Order) => {
+const viewDetail = (order: OrderItem) => {
   currentOrder.value = order;
   detailVisible.value = true;
 };
 
-const onSearch = () => {};
-
-const handleException = () => {
-  message.loading('正在联系相关人员...', 2).then(() => {
-    message.success('已通知代取人尽快处理');
-    detailVisible.value = false;
-  });
+const onSearch = () => {
+  loadOrders();
 };
+
+const handleException = async () => {
+  if (!currentOrder.value) return;
+  try {
+    await interveneOrder(currentOrder.value.id, {
+      action: 'CONTACT_RUNNER',
+      remark: currentOrder.value.exceptionDetail || '系统管理员介入处理'
+    });
+    message.success('已执行异常干预');
+    detailVisible.value = false;
+    await loadOrders();
+  } catch {
+    // 错误提示由拦截器处理
+  }
+};
+
+const loadOrders = async () => {
+  try {
+    const map: Record<string, string> = {
+      timeout: '超时未取件',
+      payment_err: '支付异常',
+      slow: '长时间未处理'
+    };
+    const pageData = await getOrders({
+      keyword: searchText.value || undefined,
+      exceptionType: filterStatus.value ? map[filterStatus.value] : undefined,
+      pageNo: 1,
+      pageSize: 200
+    });
+    orders.value = pageData.records;
+  } catch {
+    // 错误提示由拦截器处理
+  }
+};
+
+onMounted(() => {
+  loadOrders();
+});
 </script>

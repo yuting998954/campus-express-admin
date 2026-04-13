@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, PieChart } from 'echarts/charts'
@@ -60,6 +60,7 @@ import {
   ArrowUpOutlined,
   ArrowDownOutlined
 } from '@ant-design/icons-vue'
+import { getDashboardOverview, getOrderTrend, getOrderStatusDistribution } from '@/service/admin'
 
 use([
   CanvasRenderer,
@@ -71,36 +72,51 @@ use([
   GridComponent
 ])
 
-const statCards = ref([
+const overview = ref({
+  todayOrders: 0,
+  pendingVerifyCount: 0,
+  pendingDisputeCount: 0,
+  totalUsers: 0,
+  todayOrdersChange: 0,
+  pendingVerifyChange: 0,
+  pendingDisputeChange: 0,
+  totalUsersChange: 0
+})
+
+const trendData = ref<number[]>([])
+const trendAxis = ref<string[]>([])
+const statusDistribution = ref<{ name: string; value: number }[]>([])
+
+const statCards = computed(() => [
   {
     title: '今日订单量',
-    value: 128,
-    change: 12.5,
-    changeType: 'up',
+    value: overview.value.todayOrders,
+    change: Math.abs(overview.value.todayOrdersChange || 0),
+    changeType: (overview.value.todayOrdersChange || 0) >= 0 ? 'up' : 'down',
     icon: ShoppingCartOutlined,
     bgColor: '#e6f7ff'
   },
   {
     title: '待审核认证',
-    value: 23,
-    change: 8.3,
-    changeType: 'up',
+    value: overview.value.pendingVerifyCount,
+    change: Math.abs(overview.value.pendingVerifyChange || 0),
+    changeType: (overview.value.pendingVerifyChange || 0) >= 0 ? 'up' : 'down',
     icon: SafetyCertificateOutlined,
     bgColor: '#fff7e6'
   },
   {
     title: '待处理纠纷',
-    value: 5,
-    change: 16.7,
-    changeType: 'down',
+    value: overview.value.pendingDisputeCount,
+    change: Math.abs(overview.value.pendingDisputeChange || 0),
+    changeType: (overview.value.pendingDisputeChange || 0) >= 0 ? 'up' : 'down',
     icon: ExclamationCircleOutlined,
     bgColor: '#fff1f0'
   },
   {
     title: '系统总用户',
-    value: 3256,
-    change: 3.2,
-    changeType: 'up',
+    value: overview.value.totalUsers,
+    change: Math.abs(overview.value.totalUsersChange || 0),
+    changeType: (overview.value.totalUsersChange || 0) >= 0 ? 'up' : 'down',
     icon: TeamOutlined,
     bgColor: '#f6ffed'
   }
@@ -123,7 +139,7 @@ const lineChartOption = computed(() => ({
   xAxis: {
     type: 'category',
     boundaryGap: false,
-    data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+    data: trendAxis.value,
     axisLine: { lineStyle: { color: '#ddd' } },
     axisLabel: { color: '#666' }
   },
@@ -153,7 +169,7 @@ const lineChartOption = computed(() => ({
           ]
         }
       },
-      data: [95, 110, 88, 125, 142, 156, 128]
+      data: trendData.value
     }
   ]
 }))
@@ -195,15 +211,38 @@ const pieChartOption = computed(() => ({
         }
       },
       labelLine: { show: false },
-      data: [
-        { value: 45, name: '待接单', itemStyle: { color: '#faad14' } },
-        { value: 78, name: '进行中', itemStyle: { color: '#1890ff' } },
-        { value: 320, name: '已完成', itemStyle: { color: '#52c41a' } },
-        { value: 25, name: '已取消', itemStyle: { color: '#ff4d4f' } }
-      ]
+      data: statusDistribution.value.map((item, index) => ({
+        value: item.value,
+        name: item.name,
+        itemStyle: {
+          color: ['#faad14', '#1890ff', '#52c41a', '#ff4d4f', '#722ed1'][index % 5]
+        }
+      }))
     }
   ]
 }))
+
+onMounted(async () => {
+  try {
+    const [overviewData, trendList, distributionList] = await Promise.all([
+      getDashboardOverview(),
+      getOrderTrend(7),
+      getOrderStatusDistribution()
+    ])
+    overview.value = {
+      ...overview.value,
+      ...overviewData
+    }
+    trendAxis.value = trendList.map((item) => item.date)
+    trendData.value = trendList.map((item) => item.value)
+    statusDistribution.value = distributionList.map((item) => ({
+      name: item.status,
+      value: item.count
+    }))
+  } catch {
+    // 错误提示由拦截器处理
+  }
+})
 </script>
 
 <style scoped>

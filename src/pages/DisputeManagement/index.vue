@@ -30,7 +30,7 @@
     </a-table>
 
     <DisputeArbitrateModal
-      v-model:visible="modalVisible"
+      v-model:open="modalVisible"
       :dispute="currentDispute"
       @submit="submitArbitration"
     />
@@ -38,18 +38,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
-import DisputeArbitrateModal from '../components/modals/DisputeArbitrateModal.vue';
-import '../styles/management.css';
+import DisputeArbitrateModal from './DisputeArbitrateModal.vue';
+import '../../styles/management.css';
+import { adminApi } from '@/service/admin';
 
-interface ArbitrationResult {
+interface DisputeResultItem {
   decision: string;
   reason: string;
   amount?: number;
 }
 
-interface Dispute {
+interface DisputeItem {
   id: string;
   orderNo: string;
   applicant: string;
@@ -57,33 +58,13 @@ interface Dispute {
   createTime: string;
   hasEvidence: boolean;
   description: string;
-  result?: ArbitrationResult;
+  result?: DisputeResultItem;
 }
 
 const searchText = ref('');
 const modalVisible = ref(false);
-const currentDispute = ref<Dispute | null>(null);
-
-const disputes = ref<Dispute[]>([
-  {
-    id: 'D2026010901',
-    orderNo: 'ORD20260109003',
-    applicant: '赵六',
-    type: '物品损坏',
-    createTime: '2026-01-09 11:00:00',
-    hasEvidence: true,
-    description: '快递包裹外壳有明显撕裂，内部物品损坏。'
-  },
-  {
-    id: 'D2026010902',
-    orderNo: 'ORD20260109001',
-    applicant: '李四',
-    type: '酬劳争议',
-    createTime: '2026-01-09 12:00:00',
-    hasEvidence: false,
-    description: '用户要求送到寝室门口，但只支付了校门口派送的费用。'
-  }
-]);
+const currentDispute = ref<DisputeItem | null>(null);
+const disputes = ref<DisputeItem[]>([]);
 
 const columns = [
   { title: '纠纷编号', dataIndex: 'id', key: 'id' },
@@ -104,27 +85,50 @@ const filteredDisputes = computed(() => {
   );
 });
 
-const handleArbitrate = (dispute: Dispute) => {
+const handleArbitrate = (dispute: DisputeItem) => {
   currentDispute.value = dispute;
   modalVisible.value = true;
 };
 
-const onSearch = () => {};
+const onSearch = () => {
+  loadDisputes();
+};
 
-const submitArbitration = (formData: any) => {
-  const idx = disputes.value.findIndex(d => d.id === currentDispute.value?.id);
-  if (idx !== -1) {
-    disputes.value[idx].result = { ...formData };
-
-    if (formData.decision === 'runner') {
-      message.success(`仲裁成功：已从代取人账户扣除 ￥${formData.amount} 并转入用户账户`);
-    } else if (formData.decision === 'user') {
-      message.success('仲裁成功：已驳回申请，扣减该用户信誉分 5 分');
-    } else {
-      message.success('仲裁成功：已向双方推送处理结果');
-    }
+const submitArbitration = async (formData: { decision: string; reason: string; amount?: number }) => {
+  if (!currentDispute.value) return;
+  const decisionMap: Record<string, string> = {
+    runner: 'RUNNER_RESPONSIBLE',
+    user: 'USER_RESPONSIBLE',
+    both: 'BOTH_NEGOTIATION',
+  };
+  try {
+    await adminApi.arbitrateDispute(currentDispute.value.id, {
+      decision: decisionMap[formData.decision] || formData.decision,
+      reason: formData.reason,
+      amount: formData.amount,
+    });
+    message.success('仲裁成功');
+    await loadDisputes();
+  } catch {
+    // 错误提示由拦截器处理
   }
-
   modalVisible.value = false;
 };
+
+const loadDisputes = async () => {
+  try {
+    const pageData = await adminApi.getDisputes({
+      keyword: searchText.value || undefined,
+      pageNo: 1,
+      pageSize: 200,
+    });
+    disputes.value = pageData.records;
+  } catch {
+    // 错误提示由拦截器处理
+  }
+};
+
+onMounted(() => {
+  loadDisputes();
+});
 </script>

@@ -59,6 +59,7 @@
         <a-descriptions-item label="证件号">{{ currentUser?.code || '未填写' }}</a-descriptions-item>
         <a-descriptions-item label="证件类型">{{ currentUser?.cardType === 1 ? '身份证' : '学生证' }}</a-descriptions-item>
         <a-descriptions-item label="证件照片">
+
           <div class="image-container" :class="{ single: viewCertificateImages.length === 1 }">
             <a-image v-for="(image, idx) in viewCertificateImages" :key="idx" :width="200" :src="image.src"
               :fallback="placeholderImage" />
@@ -119,19 +120,39 @@ const columns = [
   { title: '操作', key: 'action', width: 150 },
 ];
 
-const placeholderImage = 'https://via.placeholder.com/200x120?text=No+Image';
+const IMAGE_BASE_URL = 'http://localhost:8081';
+
+const placeholderImage = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120"><rect width="100%" height="100%" fill="#f5f5f5"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#999" font-family="sans-serif" font-size="14">图片加载失败</text></svg>');
+
+const getImageUrl = (path: string | undefined) => {
+  if (!path) return placeholderImage;
+  // 如果是Base64格式，直接返回
+  if (path.startsWith('data:')) return path;
+  // 处理微信临时文件路径
+  if (path.startsWith('http://tmp/') || path.startsWith('https://tmp/')) {
+    const filename = path.split('/').pop();
+    return `${IMAGE_BASE_URL}/api/file/${filename}`;
+  }
+  // 已经是完整的HTTP URL，直接返回
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  // 后端返回的路径如 /api/file/xxx.jpg，直接拼接基础URL
+  return `${IMAGE_BASE_URL}${path}`;
+};
 
 const viewCertificateImages = computed(() => {
   if (!currentUser.value) return [];
+
   if (currentUser.value.cardType === 1) {
     return [
-      { label: '身份证正面', src: currentUser.value.idCardFront || placeholderImage },
-      { label: '身份证反面', src: currentUser.value.idCardBack || placeholderImage },
+      { label: '身份证正面', src: getImageUrl(currentUser.value.idCardFront) },
+      { label: '身份证反面', src: getImageUrl(currentUser.value.idCardBack) },
     ];
   }
-  return [
-    { label: '学生证', src: currentUser.value.studentCard || placeholderImage },
-  ];
+  else {
+    return [
+      { label: '学生证', src: getImageUrl(currentUser.value.studentCard) },
+    ];
+  }
 });
 
 const getAccountStatusColor = (status: number) => {
@@ -176,8 +197,8 @@ const handleTableChange = (pag: any) => {
   loadUsers();
 };
 
-const viewIdCard = (user: UserItem) => {
-  currentUser.value = user;
+const viewIdCard = async (user: UserItem) => {
+  await getVerificationInfo(user.id);
   idCardVisible.value = true;
 };
 
@@ -186,9 +207,13 @@ const handleAudit = async (user: UserItem) => {
     message.warning('当前状态不允许审核');
     return;
   }
-  const res: any = await getUserVerificationInfo(user.id);
-  currentUser.value = res;
+  await getVerificationInfo(user.id);
   auditVisible.value = true;
+};
+// 获取用户认证信息（包括证件图片等）
+const getVerificationInfo = async (id: any) => {
+  const res: any = await getUserVerificationInfo(id);
+  currentUser.value = res;
 };
 // 审核认证
 const handleAuditPass = async () => {
@@ -226,7 +251,7 @@ const handleAuditReject = () => {
         return Promise.reject();
       }
       try {
-        await verifyUser({ authId: currentUser.value!.authId, auditStatus: 2, rejectReason: reason.value });
+        await verifyUser({ authId: currentUser.value!.authId, auditStatus: 2, auditRemark: reason.value });
         message.success('已驳回');
         auditVisible.value = false;
         loadUsers();

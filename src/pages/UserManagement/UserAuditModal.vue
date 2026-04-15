@@ -31,8 +31,8 @@ interface UserItem {
   code?: string;
   idCardFront?: string;// 身份证正面
   idCardBack?: string;// 身份证反面
-  studentCard?: string;// 学生证 
-  cardType: 0 | 1; // 0: 学生证, 1: 身份证 ,根据类型显示不同的图片，如果是身份证则显示正反面，如果是学生证则只显示学生证图片
+  studentCard?: string;// 学生证
+  cardType: 0 | 1; // 0: 学生证, 1: 身份证
 }
 
 const props = defineProps<{
@@ -42,18 +42,34 @@ const props = defineProps<{
 
 const emit = defineEmits(['update:open', 'ok', 'reject']);
 
-const placeholderImage = 'https://via.placeholder.com/200x120?text=No+Image';
+const placeholderImage = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120"><rect width="100%" height="100%" fill="#f5f5f5"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#999" font-family="sans-serif" font-size="14">图片加载失败</text></svg>');
+const IMAGE_BASE_URL = 'http://localhost:8081';
+
+const getImageUrl = (path: string | undefined) => {
+  if (!path) return placeholderImage;
+  // 如果是Base64格式，直接返回
+  if (path.startsWith('data:')) return path;
+  // 处理微信临时文件路径
+  if (path.startsWith('http://tmp/') || path.startsWith('https://tmp/')) {
+    const filename = path.split('/').pop();
+    return `${IMAGE_BASE_URL}/api/file/${filename}`;
+  }
+  // 已经是完整的HTTP URL，直接返回
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  // 后端返回的路径如 /api/file/xxx.jpg，直接拼接基础URL
+  return `${IMAGE_BASE_URL}${path}`;
+};
 
 const certificateImages = computed(() => {
   if (!props.user) return [];
   if (props.user.cardType === 1) {
     return [
-      { label: '身份证正面', src: props.user.idCardFront || placeholderImage },
-      { label: '身份证反面', src: props.user.idCardBack || placeholderImage },
+      { label: '身份证正面', src: getImageUrl(props.user.idCardFront) },
+      { label: '身份证反面', src: getImageUrl(props.user.idCardBack) },
     ];
   }
   return [
-    { label: '学生证', src: props.user.studentCard || placeholderImage },
+    { label: '学生证', src: getImageUrl(props.user.studentCard) },
   ];
 });
 

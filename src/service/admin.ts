@@ -147,9 +147,9 @@ export function getUserVerificationInfo(userId: string) {
   });
 }
 // 订单列表接口
-export function getOrders(params: { keyword?: string; exceptionType?: string; pageNo?: number; pageSize?: number }) {
+export function getOrders(params: { keyword?: string; status?: number; pageNum?: number; pageSize?: number }) {
   return request<PageData<AdminOrder>>({
-    url: '/admin/orders',
+    url: '/admin/order/list',
     method: 'GET',
     params
   });
@@ -162,19 +162,19 @@ export function interveneOrder(orderId: string | number, payload: { action: stri
     data: payload
   });
 }
-
-export function getDisputes(params: { keyword?: string; status?: string; pageNo?: number; pageSize?: number }) {
+// 获取纠纷列表
+export function getDisputes(params: { keyword?: string; status?: string; pageNum?: number; pageSize?: number }) {
   return request<PageData<AdminDispute>>({
-    url: '/admin/disputes',
+    url: '/admin/dispute/list',
     method: 'GET',
     params
   });
 }
-
-export function arbitrateDispute(disputeId: string | number, payload: { decision: string; reason: string; amount?: number }) {
+// 获取纠纷详情
+export function disputeDetail(disputeId: string | number) {
   return request<null>({
-    url: `/admin/disputes/${disputeId}/arbitrate`,
+    url: `/admin/dispute/detail`,
     method: 'POST',
-    data: payload
+    data: { disputeId }
   });
 }

@@ -1,21 +1,12 @@
 <template>
   <div class="management-container">
     <div class="search-bar">
-      <a-input-search
-        v-model:value="searchText"
-        placeholder="搜索订单号/申请人"
-        style="width: 250px"
-        @search="onSearch"
-        enter-button
-      />
+      <a-input-search v-model:value="searchText" placeholder="搜索订单号/申请人" style="width: 250px" @search="onSearch"
+        enter-button />
     </div>
 
-    <a-table 
-      :columns="columns" 
-      :data-source="filteredDisputes" 
-      :pagination="{ pageSize: 10 }"
-      class="dispute-management-table"
-    >
+    <a-table :columns="columns" :data-source="filteredDisputes" :pagination="{ pageSize: 10 }"
+      class="dispute-management-table">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'evidence'">
           <a-tag v-if="record.hasEvidence" color="blue">已上传</a-tag>
@@ -29,11 +20,7 @@
       </template>
     </a-table>
 
-    <DisputeArbitrateModal
-      v-model:open="modalVisible"
-      :dispute="currentDispute"
-      @submit="submitArbitration"
-    />
+    <DisputeArbitrateModal v-model:open="modalVisible" :dispute="currentDispute" @submit="submitArbitration" />
   </div>
 </template>
 
@@ -42,7 +29,7 @@ import { ref, computed, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import DisputeArbitrateModal from './DisputeArbitrateModal.vue';
 import '../../styles/management.css';
-import { adminApi } from '@/service/admin';
+import { getDisputes } from '@/service/admin';
 
 interface DisputeResultItem {
   decision: string;
@@ -79,8 +66,8 @@ const columns = [
 const filteredDisputes = computed(() => {
   if (!searchText.value) return disputes.value;
   const lowerSearch = searchText.value.toLowerCase();
-  return disputes.value.filter(d => 
-    d.orderNo.toLowerCase().includes(lowerSearch) || 
+  return disputes.value.filter(d =>
+    d.orderNo.toLowerCase().includes(lowerSearch) ||
     d.applicant.toLowerCase().includes(lowerSearch)
   );
 });
@@ -102,7 +89,7 @@ const submitArbitration = async (formData: { decision: string; reason: string; a
     both: 'BOTH_NEGOTIATION',
   };
   try {
-    await adminApi.arbitrateDispute(currentDispute.value.id, {
+    await arbitrateDispute(currentDispute.value.id, {
       decision: decisionMap[formData.decision] || formData.decision,
       reason: formData.reason,
       amount: formData.amount,
@@ -117,10 +104,10 @@ const submitArbitration = async (formData: { decision: string; reason: string; a
 
 const loadDisputes = async () => {
   try {
-    const pageData = await adminApi.getDisputes({
+    const pageData = await getDisputes({
       keyword: searchText.value || undefined,
-      pageNo: 1,
-      pageSize: 200,
+      pageNum: 1,
+      pageSize: 10,
     });
     disputes.value = pageData.records;
   } catch {

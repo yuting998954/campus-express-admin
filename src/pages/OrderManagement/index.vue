@@ -31,25 +31,31 @@ import { ref, onMounted, h, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import OrderDetailModal from './OrderDetailModal.vue';
 import '../../styles/management.css';
-import { getOrders, interveneOrder } from '@/service/admin';
-
-interface OrderLogItem {
-  time: string;
-  action: string;
-}
+import { getOrders, interveneOrder, type OrderStatusLogVO } from '@/service/admin';
 
 interface OrderItem {
   orderId: number | string;
   orderNo: string;
-  publisherNickname: string;
-  publisherPhone: string;
+  publisherNickname?: string;
+  publisherPhone?: string;
   runnerNickname?: string;
   runnerPhone?: string;
   status: number;
-  createTime: string;
+  createTime?: string;
+  acceptTime?: string;
+  pickupTime?: string;
+  deliveryTime?: string;
+  confirmTime?: string;
+  pickupAddress?: string;
+  deliveryAddress?: string;
+  packageCount?: number;
+  pickupCode?: string;
+  rewardAmount?: number;
+  expectedDeliveryTime?: string;
+  remark?: string;
   exceptionType?: string;
   exceptionDetail?: string;
-  logs: OrderLogItem[];
+  logs: OrderStatusLogVO[];
 }
 
 const searchText = ref('');
@@ -94,24 +100,24 @@ const columns = [
     },
   },
   { title: '下单时间', dataIndex: 'createTime', key: 'createTime' },
-  {
-    title: '异常情况',
-    key: 'exception',
-    customRender: ({ record }: any) => {
-      if (record.exceptionType) {
-        return h('a-tag', { color: 'error' }, record.exceptionType);
-      }
-      return '-';
-    },
-  },
+  // {
+  //   title: '异常情况',
+  //   key: 'exception',
+  //   customRender: ({ record }: any) => {
+  //     if (record.exceptionType) {
+  //       return h('a-tag', { color: 'error' }, record.exceptionType);
+  //     }
+  //     return '-';
+  //   },
+  // },
   {
     title: '操作',
     key: 'action',
     customRender: ({ record }: any) => {
       return h(
         'a-button',
-        { type: 'link', onClick: () => viewDetail(record) },
-        () => '查看详情'
+        { type: 'primary', style: { cursor: 'pointer', color: '#1677ff' }, onClick: () => viewDetail(record) },
+        '查看详情'
       );
     },
   },
@@ -120,6 +126,8 @@ const columns = [
 
 
 const viewDetail = (order: OrderItem) => {
+  console.log(order);
+
   currentOrder.value = order;
   detailVisible.value = true;
 };
@@ -162,7 +170,7 @@ const loadOrders = async () => {
   loading.value = true;
   try {
     const pageData: any = await getOrders({
-      keyword: searchText.value || undefined,
+      keyword: searchText.value,
       status: filterStatus.value || undefined,
       pageNum: currentPage.value,
       pageSize: pageSize.value,

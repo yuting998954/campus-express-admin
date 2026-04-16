@@ -56,23 +56,45 @@ export interface AdminUser {
   studentCardImage?: string;
 }
 
-export interface AdminOrderLog {
-  time: string;
-  action: string;
+export interface OrderStatusLogVO {
+  logId: number;
+  fromStatus: number | null;
+  fromStatusLabel: string;
+  toStatus: number;
+  toStatusLabel: string;
+  operatorId: number | null;
+  operatorTypeLabel: string;
+  operatorName: string;
+  remark: string;
+  createTime: string;
 }
 
 export interface AdminOrder {
-  id: number | string;
+  orderId: number | string;
   orderNo: string;
-  userName: string;
-  userPhone: string;
-  runnerName?: string;
+  publisherId?: number | string;
+  publisherNickname?: string;
+  publisherPhone?: string;
+  runnerId?: number | string;
+  runnerNickname?: string;
   runnerPhone?: string;
-  status: string;
-  createTime: string;
+  status: number;
+  statusLabel?: string;
+  createTime?: string;
+  acceptTime?: string;
+  pickupTime?: string;
+  deliveryTime?: string;
+  confirmTime?: string;
   exceptionType?: string;
   exceptionDetail?: string;
-  logs: AdminOrderLog[];
+  logs: OrderStatusLogVO[];
+  pickupAddress?: string;
+  deliveryAddress?: string;
+  packageCount?: number;
+  pickupCode?: string;
+  rewardAmount?: number;
+  expectedDeliveryTime?: string;
+  remark?: string;
 }
 
 export interface AdminDisputeResult {
@@ -82,14 +104,26 @@ export interface AdminDisputeResult {
 }
 
 export interface AdminDispute {
-  id: string;
+  disputeId: number | string;
+  orderId: number | string;
   orderNo: string;
-  applicant: string;
-  type: string;
+  applicantId: number | string;
+  applicantName: string;
+  applicantPhone: string;
+  respondentId: number | string;
+  respondentName: string;
+  respondentPhone: string;
+  disputeType: number | string;
+  disputeTypeLabel: string;
+  reason: string;
+  status: number;
+  statusLabel: string;
+  result: string;
+  responsibleParty: number;
+  responsiblePartyLabel: string;
   createTime: string;
-  hasEvidence: boolean;
-  description: string;
-  result?: AdminDisputeResult;
+  updateTime: string;
+  evidenceList?: string[];
 }
 
 export function login(payload: AdminLoginPayload) {
@@ -172,9 +206,27 @@ export function getDisputes(params: { keyword?: string; status?: string; pageNum
 }
 // 获取纠纷详情
 export function disputeDetail(disputeId: string | number) {
-  return request<null>({
+  return request<any>({
     url: `/admin/dispute/detail`,
-    method: 'POST',
-    data: { disputeId }
+    method: 'GET',
+    params: { disputeId }
+  });
+}
+// 处理纠纷
+export function resolveDispute(disputeId: string | number, payload: { decision: string; reason: string; amount?: number }) {
+  // 将前端decision转换为后端liability: 0-申请人责任, 1-被申请人责任, 2-双方责任
+  const decisionMap: Record<string, number> = {
+    'runner': 1,    // 代取人责任 -> 被申请人(代取员)责任
+    'user': 0,      // 用户恶意 -> 申请人责任
+    'both': 2,     // 双方责任
+  };
+  return request<null>({
+    url: `/admin/dispute/arbitrate`,
+    method: 'PUT',
+    data: {
+      disputeId,
+      liability: decisionMap[payload.decision] ?? payload.decision,
+      result: payload.reason,
+    }
   });
 }
